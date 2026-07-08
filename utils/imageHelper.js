@@ -1,18 +1,10 @@
-import fs from 'fs';
-import path from 'path';
+import { getSupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
-
-// Ensure upload directory exists (fallback check)
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
-
 /**
- * Saves a base64 encoded image to the filesystem.
+ * Saves a base64 encoded image to Supabase Storage.
  * @param {string} base64DataUrl - The image as a base64 data URL.
- * @returns {Promise<string>} - The web URL of the saved image (e.g. '/uploads/uuid.png').
+ * @returns {Promise<string>} - The public URL of the saved image.
  */
 export async function saveImage(base64DataUrl) {
   if (!base64DataUrl) return null;
@@ -58,43 +50,56 @@ export async function saveImage(base64DataUrl) {
 
   // Generate unique filename
   const filename = `${crypto.randomUUID()}.${extension}`;
-  const filePath = path.join(UPLOAD_DIR, filename);
 
-  // Convert base64 to binary buffer and write
+  // Convert base64 to binary buffer and upload
   const buffer = Buffer.from(base64Data, 'base64');
-  await fs.promises.writeFile(filePath, buffer);
+  
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.storage
+    .from('notice-images')
+    .upload(filename, buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
 
-  return `/uploads/${filename}`;
+  if (error) {
+    console.error('Supabase Storage upload error:', error);
+    throw new Error(`Failed to upload image to Supabase: ${error.message}`);
+  }
+
+  // Get public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('notice-images')
+    .getPublicUrl(filename);
+
+  return publicUrl;
 }
 
 /**
- * Deletes an image from the filesystem.
- * @param {string} imageUrl - The web URL of the image (e.g. '/uploads/uuid.png').
- * @returns {Promise<boolean>} - True if deleted, false if the file did not exist.
+ * Deletes an image from Supabase Storage.
+ * @param {string} imageUrl - The public URL of the image.
+ * @returns {Promise<boolean>} - True if deleted successfully.
  */
 export async function deleteImage(imageUrl) {
   if (!imageUrl) return false;
 
-  // Extract the filename from the URL path (e.g. /uploads/uuid.png -> uuid.png)
-  const filename = path.basename(imageUrl);
-  const filePath = path.join(UPLOAD_DIR, filename);
+  // Extract the filename from the URL path (e.g. https://.../notice-images/filename.png -> filename.png)
+  const filename = imageUrl.split('/').pop();
+  if (!filename) return false;
 
   try {
-    // Check if the file exists and is in the uploads directory
-    const resolvedPath = path.resolve(filePath);
-    const resolvedUploadDir = path.resolve(UPLOAD_DIR);
-    
-    // Prevent directory traversal attacks
-    if (!resolvedPath.startsWith(resolvedUploadDir)) {
-      throw new Error('Directory traversal attempt detected');
-    }
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.storage
+      .from('notice-images')
+      .remove([filename]);
 
-    if (fs.existsSync(filePath)) {
-      await fs.promises.unlink(filePath);
-      return true;
+    if (error) {
+      console.error(`Failed to delete image ${imageUrl} from Supabase Storage:`, error);
+      return false;
     }
+    return true;
   } catch (error) {
     console.error(`Failed to delete image ${imageUrl}:`, error);
+    return false;
   }
-  return false;
 }
