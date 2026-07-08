@@ -10,11 +10,29 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file by copying `.env.example` and add your Supabase PostgreSQL connection string.
+Create a `.env` file in the root of the project by copying `.env.example`:
 
 ```env
 DATABASE_URL="your_supabase_postgresql_connection_string"
+NEXT_PUBLIC_SUPABASE_URL="https://your-project-id.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your_supabase_service_role_key"
 ```
+
+#### How to get these variables on Supabase:
+
+1. **`DATABASE_URL`**:
+   - Go to your **Supabase Dashboard** -> **Project Settings** (gear icon) -> **Database**.
+   - Scroll down to the **Connection string** section.
+   - Choose **URI** (select Node.js or similar standard URI), copy the connection string, and replace `[YOUR-PASSWORD]` with the actual password you set when creating the project.
+
+2. **`NEXT_PUBLIC_SUPABASE_URL`**:
+   - Go to your **Supabase Dashboard** -> **Project Settings** (gear icon) -> **API**.
+   - Under **API Settings**, copy the **Project URL**.
+
+3. **`SUPABASE_SERVICE_ROLE_KEY`**:
+   - Go to your **Supabase Dashboard** -> **Project Settings** (gear icon) -> **API**.
+   - Under **Project API Keys**, find the **`service_role` (secret)** key. Click **Reveal** and copy the long token (starts with `eyJ...`).
+
 
 ### 3. Push the Database Schema
 
